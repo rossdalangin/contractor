@@ -6,6 +6,26 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
+ * Renders the task details meta box.
+ *
+ * @param WP_Post $post The post object.
+ */
+function cmp_render_task_details_meta_box( $post ) {
+    $due_date = get_post_meta( $post->ID, '_cmp_task_due_date', true );
+    $budget = get_post_meta( $post->ID, '_cmp_task_budget', true );
+    ?>
+    <p>
+        <label for="cmp_task_due_date"><?php _e( 'Due Date:', 'contractor-management-portal' ); ?></label><br>
+        <input type="date" id="cmp_task_due_date" name="cmp_task_due_date" value="<?php echo esc_attr( $due_date ); ?>" />
+    </p>
+    <p>
+        <label for="cmp_task_budget"><?php _e( 'Budget:', 'contractor-management-portal' ); ?></label><br>
+        <input type="text" id="cmp_task_budget" name="cmp_task_budget" value="<?php echo esc_attr( $budget ); ?>" />
+    </p>
+    <?php
+}
+
+/**
  * Adds a meta box to the task post type.
  */
 function cmp_add_task_meta_box() {
@@ -32,6 +52,14 @@ function cmp_add_task_meta_box() {
         'task',
         'side',
         'default'
+    );
+    add_meta_box(
+        'cmp_task_details_meta_box',
+        __( 'Task Details', 'contractor-management-portal' ),
+        'cmp_render_task_details_meta_box',
+        'task',
+        'normal',
+        'high'
     );
 }
 add_action( 'add_meta_boxes', 'cmp_add_task_meta_box' );
@@ -147,6 +175,18 @@ function cmp_save_task_meta( $post_id ) {
         $channel_id = sanitize_text_field( $_POST['cmp_assigned_channel'] );
         update_post_meta( $post_id, '_cmp_assigned_channel', $channel_id );
     }
+
+    // Sanitize and save the due date.
+    if ( isset( $_POST['cmp_task_due_date'] ) ) {
+        $due_date = sanitize_text_field( $_POST['cmp_task_due_date'] );
+        update_post_meta( $post_id, '_cmp_task_due_date', $due_date );
+    }
+
+    // Sanitize and save the budget.
+    if ( isset( $_POST['cmp_task_budget'] ) ) {
+        $budget = sanitize_text_field( $_POST['cmp_task_budget'] );
+        update_post_meta( $post_id, '_cmp_task_budget', $budget );
+    }
 }
 add_action( 'save_post', 'cmp_save_task_meta' );
 
@@ -163,8 +203,41 @@ function cmp_add_invoice_meta_box() {
         'normal',
         'high'
     );
+    add_meta_box(
+        'cmp_invoice_payment_details_meta_box',
+        __( 'Payment Details', 'contractor-management-portal' ),
+        'cmp_render_invoice_payment_details_meta_box',
+        'invoice',
+        'normal',
+        'default'
+    );
 }
 add_action( 'add_meta_boxes', 'cmp_add_invoice_meta_box' );
+
+/**
+ * Renders the payment details meta box.
+ *
+ * @param WP_Post $post The post object.
+ */
+function cmp_render_invoice_payment_details_meta_box( $post ) {
+    $payment_date = get_post_meta( $post->ID, '_cmp_payment_date', true );
+    $payment_method = get_post_meta( $post->ID, '_cmp_payment_method', true );
+    $transaction_id = get_post_meta( $post->ID, '_cmp_transaction_id', true );
+    ?>
+    <p>
+        <label for="cmp_payment_date"><?php _e( 'Payment Date:', 'contractor-management-portal' ); ?></label><br>
+        <input type="date" id="cmp_payment_date" name="cmp_payment_date" value="<?php echo esc_attr( $payment_date ); ?>" />
+    </p>
+    <p>
+        <label for="cmp_payment_method"><?php _e( 'Payment Method:', 'contractor-management-portal' ); ?></label><br>
+        <input type="text" id="cmp_payment_method" name="cmp_payment_method" value="<?php echo esc_attr( $payment_method ); ?>" style="width:100%;" />
+    </p>
+    <p>
+        <label for="cmp_transaction_id"><?php _e( 'Transaction ID:', 'contractor-management-portal' ); ?></label><br>
+        <input type="text" id="cmp_transaction_id" name="cmp_transaction_id" value="<?php echo esc_attr( $transaction_id ); ?>" style="width:100%;" />
+    </p>
+    <?php
+}
 
 /**
  * Renders the meta box.
@@ -173,11 +246,24 @@ function cmp_render_invoice_meta_box( $post ) {
     // Add nonce for security and authentication.
     wp_nonce_field( 'cmp_save_invoice_meta', 'cmp_invoice_nonce' );
 
+    // Get the linked task ID
+    $task_id = get_post_meta( $post->ID, '_cmp_task_id', true );
+
     // Get existing meta values.
     $amount = get_post_meta( $post->ID, '_cmp_invoice_amount', true );
     $due_date = get_post_meta( $post->ID, '_cmp_invoice_due_date', true );
     $file_id = get_post_meta( $post->ID, '_cmp_invoice_file_id', true );
     ?>
+    <?php if ( $task_id ) :
+        $task_title = get_the_title( $task_id );
+        $task_url = get_edit_post_link( $task_id );
+    ?>
+    <p>
+        <strong><?php _e( 'Associated Task:', 'contractor-management-portal' ); ?></strong>
+        <a href="<?php echo esc_url($task_url); ?>"><?php echo esc_html($task_title); ?></a>
+    </p>
+    <hr>
+    <?php endif; ?>
     <p>
         <label for="cmp_invoice_amount"><?php _e( 'Amount:', 'contractor-management-portal' ); ?></label><br>
         <input type="text" id="cmp_invoice_amount" name="cmp_invoice_amount" value="<?php echo esc_attr( $amount ); ?>" />
@@ -310,6 +396,24 @@ function cmp_save_invoice_meta( $post_id ) {
             }
         }
     }
+
+    // Sanitize and save the payment date.
+    if ( isset( $_POST['cmp_payment_date'] ) ) {
+        $payment_date = sanitize_text_field( $_POST['cmp_payment_date'] );
+        update_post_meta( $post_id, '_cmp_payment_date', $payment_date );
+    }
+
+    // Sanitize and save the payment method.
+    if ( isset( $_POST['cmp_payment_method'] ) ) {
+        $payment_method = sanitize_text_field( $_POST['cmp_payment_method'] );
+        update_post_meta( $post_id, '_cmp_payment_method', $payment_method );
+    }
+
+    // Sanitize and save the transaction ID.
+    if ( isset( $_POST['cmp_transaction_id'] ) ) {
+        $transaction_id = sanitize_text_field( $_POST['cmp_transaction_id'] );
+        update_post_meta( $post_id, '_cmp_transaction_id', $transaction_id );
+    }
 }
 add_action( 'save_post', 'cmp_save_invoice_meta' );
 
@@ -333,6 +437,14 @@ function cmp_add_client_meta_box() {
         'side',
         'default'
     );
+    add_meta_box(
+        'cmp_client_details_meta_box',
+        __( 'Client Details', 'contractor-management-portal' ),
+        'cmp_render_client_details_meta_box',
+        'client',
+        'normal',
+        'high'
+    );
 }
 add_action( 'add_meta_boxes', 'cmp_add_client_meta_box' );
 
@@ -341,6 +453,31 @@ add_action( 'add_meta_boxes', 'cmp_add_client_meta_box' );
  *
  * @param WP_Post $post The post object.
  */
+/**
+ * Renders the client details meta box.
+ *
+ * @param WP_Post $post The post object.
+ */
+function cmp_render_client_details_meta_box( $post ) {
+    $email = get_post_meta( $post->ID, '_cmp_client_email', true );
+    $phone = get_post_meta( $post->ID, '_cmp_client_phone', true );
+    $address = get_post_meta( $post->ID, '_cmp_client_address', true );
+    ?>
+    <p>
+        <label for="cmp_client_email"><?php _e( 'Email:', 'contractor-management-portal' ); ?></label><br>
+        <input type="email" id="cmp_client_email" name="cmp_client_email" value="<?php echo esc_attr( $email ); ?>" style="width:100%;" />
+    </p>
+    <p>
+        <label for="cmp_client_phone"><?php _e( 'Phone:', 'contractor-management-portal' ); ?></label><br>
+        <input type="text" id="cmp_client_phone" name="cmp_client_phone" value="<?php echo esc_attr( $phone ); ?>" style="width:100%;" />
+    </p>
+    <p>
+        <label for="cmp_client_address"><?php _e( 'Address:', 'contractor-management-portal' ); ?></label><br>
+        <textarea id="cmp_client_address" name="cmp_client_address" rows="4" style="width:100%;"><?php echo esc_textarea( $address ); ?></textarea>
+    </p>
+    <?php
+}
+
 function cmp_render_client_user_meta_box( $post ) {
     // Add nonce for security and authentication.
     wp_nonce_field( 'cmp_save_client_user_meta', 'cmp_client_user_nonce' );
@@ -363,11 +500,11 @@ function cmp_render_client_user_meta_box( $post ) {
 }
 
 /**
- * Handles the saving of the client user meta box.
+ * Handles the saving of the client meta boxes.
  *
  * @param int $post_id Post ID.
  */
-function cmp_save_client_user_meta( $post_id ) {
+function cmp_save_client_meta( $post_id ) {
     // Check if our nonce is set.
     if ( ! isset( $_POST['cmp_client_user_nonce'] ) ) {
         return;
@@ -395,8 +532,26 @@ function cmp_save_client_user_meta( $post_id ) {
         $user_id = sanitize_text_field( $_POST['cmp_assigned_user_id'] );
         update_post_meta( $post_id, '_cmp_assigned_user_id', $user_id );
     }
+
+    // Sanitize and save the email.
+    if ( isset( $_POST['cmp_client_email'] ) ) {
+        $email = sanitize_email( $_POST['cmp_client_email'] );
+        update_post_meta( $post_id, '_cmp_client_email', $email );
+    }
+
+    // Sanitize and save the phone.
+    if ( isset( $_POST['cmp_client_phone'] ) ) {
+        $phone = sanitize_text_field( $_POST['cmp_client_phone'] );
+        update_post_meta( $post_id, '_cmp_client_phone', $phone );
+    }
+
+    // Sanitize and save the address.
+    if ( isset( $_POST['cmp_client_address'] ) ) {
+        $address = sanitize_textarea_field( $_POST['cmp_client_address'] );
+        update_post_meta( $post_id, '_cmp_client_address', $address );
+    }
 }
-add_action( 'save_post', 'cmp_save_client_user_meta' );
+add_action( 'save_post', 'cmp_save_client_meta' );
 
 /**
  * Adds a meta box to the channel post type.
@@ -410,6 +565,14 @@ function cmp_add_channel_meta_box() {
         'side',
         'default'
     );
+    add_meta_box(
+        'cmp_channel_details_meta_box',
+        __( 'Channel Details', 'contractor-management-portal' ),
+        'cmp_render_channel_details_meta_box',
+        'channel',
+        'normal',
+        'high'
+    );
 }
 add_action( 'add_meta_boxes', 'cmp_add_channel_meta_box' );
 
@@ -418,6 +581,32 @@ add_action( 'add_meta_boxes', 'cmp_add_channel_meta_box' );
  *
  * @param WP_Post $post The post object.
  */
+/**
+ * Renders the channel details meta box.
+ *
+ * @param WP_Post $post The post object.
+ */
+function cmp_render_channel_details_meta_box( $post ) {
+    $platform = get_post_meta( $post->ID, '_cmp_channel_platform', true );
+    $url = get_post_meta( $post->ID, '_cmp_channel_url', true );
+    ?>
+    <p>
+        <label for="cmp_channel_platform"><?php _e( 'Platform:', 'contractor-management-portal' ); ?></label><br>
+        <select id="cmp_channel_platform" name="cmp_channel_platform" style="width:100%;">
+            <option value="youtube" <?php selected( $platform, 'youtube' ); ?>>YouTube</option>
+            <option value="twitter" <?php selected( $platform, 'twitter' ); ?>>Twitter</option>
+            <option value="facebook" <?php selected( $platform, 'facebook' ); ?>>Facebook</option>
+            <option value="instagram" <?php selected( $platform, 'instagram' ); ?>>Instagram</option>
+            <option value="other" <?php selected( $platform, 'other' ); ?>>Other</option>
+        </select>
+    </p>
+    <p>
+        <label for="cmp_channel_url"><?php _e( 'Channel URL:', 'contractor-management-portal' ); ?></label><br>
+        <input type="url" id="cmp_channel_url" name="cmp_channel_url" value="<?php echo esc_url( $url ); ?>" style="width:100%;" />
+    </p>
+    <?php
+}
+
 function cmp_render_channel_id_meta_box( $post ) {
     // Add nonce for security and authentication.
     wp_nonce_field( 'cmp_save_channel_id_meta', 'cmp_channel_id_nonce' );
@@ -445,11 +634,11 @@ function cmp_render_channel_id_meta_box( $post ) {
 }
 
 /**
- * Handles the saving of the channel ID meta box.
+ * Handles the saving of the channel meta boxes.
  *
  * @param int $post_id Post ID.
  */
-function cmp_save_channel_id_meta( $post_id ) {
+function cmp_save_channel_meta( $post_id ) {
     // Check if our nonce is set.
     if ( ! isset( $_POST['cmp_channel_id_nonce'] ) ) {
         return;
@@ -477,5 +666,17 @@ function cmp_save_channel_id_meta( $post_id ) {
         $channel_id = sanitize_text_field( $_POST['cmp_youtube_channel_id'] );
         update_post_meta( $post_id, '_cmp_youtube_channel_id', $channel_id );
     }
+
+    // Sanitize and save the platform.
+    if ( isset( $_POST['cmp_channel_platform'] ) ) {
+        $platform = sanitize_text_field( $_POST['cmp_channel_platform'] );
+        update_post_meta( $post_id, '_cmp_channel_platform', $platform );
+    }
+
+    // Sanitize and save the URL.
+    if ( isset( $_POST['cmp_channel_url'] ) ) {
+        $url = esc_url_raw( $_POST['cmp_channel_url'] );
+        update_post_meta( $post_id, '_cmp_channel_url', $url );
+    }
 }
-add_action( 'save_post', 'cmp_save_channel_id_meta' );
+add_action( 'save_post', 'cmp_save_channel_meta' );
