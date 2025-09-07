@@ -55,6 +55,21 @@ function cmp_register_settings() {
         'cmp-settings',
         'cmp_stripe_section'
     );
+
+    // YouTube Section
+    add_settings_section(
+        'cmp_youtube_section',
+        'YouTube API Settings',
+        'cmp_youtube_section_callback',
+        'cmp-settings'
+    );
+    add_settings_field(
+        'cmp_youtube_api_key',
+        'YouTube API Key',
+        'cmp_youtube_api_key_callback',
+        'cmp-settings',
+        'cmp_youtube_section'
+    );
 }
 add_action( 'admin_init', 'cmp_register_settings' );
 
@@ -75,6 +90,9 @@ function cmp_sanitize_options( $input ) {
     }
     if ( isset( $input['stripe_secret_key'] ) ) {
         $output['stripe_secret_key'] = sanitize_text_field( $input['stripe_secret_key'] );
+    }
+    if ( isset( $input['youtube_api_key'] ) ) {
+        $output['youtube_api_key'] = sanitize_text_field( $input['youtube_api_key'] );
     }
 
     return $output;
@@ -183,4 +201,20 @@ function cmp_stripe_secret_key_callback() {
     $options = get_option( 'cmp_options' );
     $secret_key = isset( $options['stripe_secret_key'] ) ? $options['stripe_secret_key'] : '';
     echo '<input type="text" id="cmp_stripe_secret_key" name="cmp_options[stripe_secret_key]" value="' . esc_attr( $secret_key ) . '" size="50" />';
+}
+
+/**
+ * YouTube section callback.
+ */
+function cmp_youtube_section_callback() {
+    echo '<p>Enter your YouTube Data API Key below. You can get this from the <a href="https://console.developers.google.com/" target="_blank">Google API Console</a>.</p>';
+}
+
+/**
+ * YouTube field callbacks.
+ */
+function cmp_youtube_api_key_callback() {
+    $options = get_option( 'cmp_options' );
+    $api_key = isset( $options['youtube_api_key'] ) ? $options['youtube_api_key'] : '';
+    echo '<input type="text" id="cmp_youtube_api_key" name="cmp_options[youtube_api_key]" value="' . esc_attr( $api_key ) . '" size="50" />';
 }

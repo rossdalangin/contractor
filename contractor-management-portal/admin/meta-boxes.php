@@ -397,3 +397,85 @@ function cmp_save_client_user_meta( $post_id ) {
     }
 }
 add_action( 'save_post', 'cmp_save_client_user_meta' );
+
+/**
+ * Adds a meta box to the channel post type.
+ */
+function cmp_add_channel_meta_box() {
+    add_meta_box(
+        'cmp_channel_id_meta_box',
+        __( 'YouTube Channel ID', 'contractor-management-portal' ),
+        'cmp_render_channel_id_meta_box',
+        'channel',
+        'side',
+        'default'
+    );
+}
+add_action( 'add_meta_boxes', 'cmp_add_channel_meta_box' );
+
+/**
+ * Renders the channel ID meta box.
+ *
+ * @param WP_Post $post The post object.
+ */
+function cmp_render_channel_id_meta_box( $post ) {
+    // Add nonce for security and authentication.
+    wp_nonce_field( 'cmp_save_channel_id_meta', 'cmp_channel_id_nonce' );
+
+    $channel_id = get_post_meta( $post->ID, '_cmp_youtube_channel_id', true );
+    ?>
+    <label for="cmp_youtube_channel_id"><?php _e( 'Enter the YouTube Channel ID:', 'contractor-management-portal' ); ?></label>
+    <input type="text" id="cmp_youtube_channel_id" name="cmp_youtube_channel_id" value="<?php echo esc_attr( $channel_id ); ?>" style="width:100%;" />
+    <hr>
+    <?php
+    if ( ! empty( $channel_id ) ) {
+        $stats = cmp_get_youtube_channel_stats( $channel_id );
+        if ( $stats ) {
+            echo '<h4>' . esc_html( $stats['title'] ) . '</h4>';
+            echo '<img src="' . esc_url( $stats['thumbnail'] ) . '" />';
+            echo '<ul>';
+            echo '<li><strong>' . __( 'Subscribers:', 'contractor-management-portal' ) . '</strong> ' . esc_html( number_format_i18n( $stats['subscriberCount'] ) ) . '</li>';
+            echo '<li><strong>' . __( 'Total Views:', 'contractor-management-portal' ) . '</strong> ' . esc_html( number_format_i18n( $stats['viewCount'] ) ) . '</li>';
+            echo '<li><strong>' . __( 'Total Videos:', 'contractor-management-portal' ) . '</strong> ' . esc_html( number_format_i18n( $stats['videoCount'] ) ) . '</li>';
+            echo '</ul>';
+        } else {
+            echo '<p style="color:red;">' . __( 'Could not retrieve channel stats. Please check the Channel ID and API Key.', 'contractor-management-portal' ) . '</p>';
+        }
+    }
+}
+
+/**
+ * Handles the saving of the channel ID meta box.
+ *
+ * @param int $post_id Post ID.
+ */
+function cmp_save_channel_id_meta( $post_id ) {
+    // Check if our nonce is set.
+    if ( ! isset( $_POST['cmp_channel_id_nonce'] ) ) {
+        return;
+    }
+
+    // Verify that the nonce is valid.
+    if ( ! wp_verify_nonce( $_POST['cmp_channel_id_nonce'], 'cmp_save_channel_id_meta' ) ) {
+        return;
+    }
+
+    // If this is an autosave, our form has not been submitted, so we don't want to do anything.
+    if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+        return;
+    }
+
+    // Check the user's permissions.
+    if ( isset( $_POST['post_type'] ) && 'channel' == $_POST['post_type'] ) {
+        if ( ! current_user_can( 'edit_post', $post_id ) ) {
+            return;
+        }
+    }
+
+    // Sanitize and save the channel ID.
+    if ( isset( $_POST['cmp_youtube_channel_id'] ) ) {
+        $channel_id = sanitize_text_field( $_POST['cmp_youtube_channel_id'] );
+        update_post_meta( $post_id, '_cmp_youtube_channel_id', $channel_id );
+    }
+}
+add_action( 'save_post', 'cmp_save_channel_id_meta' );

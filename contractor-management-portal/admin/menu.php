@@ -533,6 +533,66 @@ function cmp_render_task_columns( $column_name, $post_id ) {
 add_action( 'manage_task_posts_custom_column', 'cmp_render_task_columns', 10, 2 );
 
 /**
+ * Add custom columns to the channel list table.
+ *
+ * @param array $columns The existing columns.
+ * @return array The modified columns.
+ */
+function cmp_add_channel_columns( $columns ) {
+    $new_columns = array();
+    foreach ( $columns as $key => $value ) {
+        $new_columns[$key] = $value;
+        if ( $key === 'title' ) {
+            $new_columns['youtube_subscribers'] = __( 'Subscribers', 'contractor-management-portal' );
+            $new_columns['youtube_views'] = __( 'Views', 'contractor-management-portal' );
+            $new_columns['youtube_videos'] = __( 'Videos', 'contractor-management-portal' );
+        }
+    }
+    return $new_columns;
+}
+add_filter( 'manage_channel_posts_columns', 'cmp_add_channel_columns' );
+
+/**
+ * Render the custom column content for channels.
+ *
+ * @param string $column_name The name of the column.
+ * @param int    $post_id     The ID of the post.
+ */
+function cmp_render_channel_columns( $column_name, $post_id ) {
+    $channel_id = get_post_meta( $post_id, '_cmp_youtube_channel_id', true );
+    if ( empty( $channel_id ) ) {
+        return;
+    }
+
+    // To avoid making an API call for every row, we'll store the stats in a transient.
+    $transient_key = 'cmp_yt_stats_' . $channel_id;
+    $stats = get_transient( $transient_key );
+
+    if ( false === $stats ) {
+        $stats = cmp_get_youtube_channel_stats( $channel_id );
+        // Cache the result for 1 hour.
+        set_transient( $transient_key, $stats, HOUR_IN_SECONDS );
+    }
+
+    if ( ! $stats ) {
+        return;
+    }
+
+    switch ( $column_name ) {
+        case 'youtube_subscribers':
+            echo esc_html( number_format_i18n( $stats['subscriberCount'] ) );
+            break;
+        case 'youtube_views':
+            echo esc_html( number_format_i18n( $stats['viewCount'] ) );
+            break;
+        case 'youtube_videos':
+            echo esc_html( number_format_i18n( $stats['videoCount'] ) );
+            break;
+    }
+}
+add_action( 'manage_channel_posts_custom_column', 'cmp_render_channel_columns', 10, 2 );
+
+/**
  * Render the settings page.
  */
 function cmp_render_settings_page() {

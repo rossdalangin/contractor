@@ -31,6 +31,7 @@ if ( is_admin() ) {
     require plugin_dir_path( __FILE__ ) . 'admin/menu.php';
     require plugin_dir_path( __FILE__ ) . 'admin/meta-boxes.php';
     require plugin_dir_path( __FILE__ ) . 'admin/settings.php';
+    require plugin_dir_path( __FILE__ ) . 'includes/api.php';
 }
 
 /**
