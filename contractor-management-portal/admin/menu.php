@@ -40,6 +40,14 @@ function cmp_add_submenus() {
         'cmp-reporting',
         'cmp_render_reporting_page'
     );
+    add_submenu_page(
+        'contractor-management-portal',
+        __( 'Settings', 'contractor-management-portal' ),
+        __( 'Settings', 'contractor-management-portal' ),
+        'manage_options',
+        'cmp-settings',
+        'cmp_render_settings_page'
+    );
 }
 add_action('admin_menu', 'cmp_add_submenus');
 
@@ -408,3 +416,21 @@ function cmp_render_task_columns( $column_name, $post_id ) {
     }
 }
 add_action( 'manage_task_posts_custom_column', 'cmp_render_task_columns', 10, 2 );
+
+/**
+ * Render the settings page.
+ */
+function cmp_render_settings_page() {
+    ?>
+    <div class="wrap">
+        <h1><?php _e( 'Contractor Management Settings', 'contractor-management-portal' ); ?></h1>
+        <form action="options.php" method="post">
+            <?php
+            settings_fields( 'cmp_settings_group' );
+            do_settings_sections( 'cmp-settings' );
+            submit_button( 'Save Settings' );
+            ?>
+        </form>
+    </div>
+    <?php
+}

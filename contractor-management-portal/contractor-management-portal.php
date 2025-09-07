@@ -30,6 +30,7 @@ require plugin_dir_path( __FILE__ ) . 'includes/roles.php';
 if ( is_admin() ) {
     require plugin_dir_path( __FILE__ ) . 'admin/menu.php';
     require plugin_dir_path( __FILE__ ) . 'admin/meta-boxes.php';
+    require plugin_dir_path( __FILE__ ) . 'admin/settings.php';
 }
 
 /**
@@ -158,22 +159,50 @@ function cmp_handle_invoice_submission() {
 
             // Handle the file upload.
             if ( ! empty( $_FILES['cmp_invoice_file']['name'] ) ) {
-                // Include the necessary file for `wp_handle_upload`.
-                require_once( ABSPATH . 'wp-admin/includes/file.php' );
+                $options = get_option( 'cmp_options' );
+                if ( isset( $options['google_access_token']['access_token'] ) ) {
+                    // Google Drive upload
+                    $client = cmp_get_google_client();
+                    $client->setAccessToken( $options['google_access_token'] );
 
-                $uploaded_file = $_FILES['cmp_invoice_file'];
-                $upload_overrides = array( 'test_form' => false );
-                $move_file = wp_handle_upload( $uploaded_file, $upload_overrides );
+                    // Refresh the token if it's expired.
+                    if ( $client->isAccessTokenExpired() ) {
+                        $client->fetchAccessTokenWithRefreshToken( $client->getRefreshToken() );
+                        $options['google_access_token'] = $client->getAccessToken();
+                        update_option( 'cmp_options', $options );
+                    }
 
-                if ( $move_file && ! isset( $move_file['error'] ) ) {
-                    $attachment = array(
-                        'post_mime_type' => $move_file['type'],
-                        'post_title'     => preg_replace( '/\.[^.]+$/', '', basename( $move_file['file'] ) ),
-                        'post_content'   => '',
-                        'post_status'    => 'inherit'
-                    );
-                    $attach_id = wp_insert_attachment( $attachment, $move_file['file'], $invoice_id );
-                    update_post_meta( $invoice_id, '_cmp_invoice_file_id', $attach_id );
+                    $drive_service = new Google_Service_Drive( $client );
+                    $file_metadata = new Google_Service_Drive_DriveFile( array(
+                        'name' => basename( $_FILES['cmp_invoice_file']['name'] )
+                    ) );
+                    $content = file_get_contents( $_FILES['cmp_invoice_file']['tmp_name'] );
+                    $file = $drive_service->files->create( $file_metadata, array(
+                        'data' => $content,
+                        'mimeType' => $_FILES['cmp_invoice_file']['type'],
+                        'uploadType' => 'multipart',
+                        'fields' => 'id'
+                    ) );
+
+                    update_post_meta( $invoice_id, '_cmp_invoice_gdrive_file_id', $file->id );
+
+                } else {
+                    // WordPress Media Library upload
+                    require_once( ABSPATH . 'wp-admin/includes/file.php' );
+                    $uploaded_file = $_FILES['cmp_invoice_file'];
+                    $upload_overrides = array( 'test_form' => false );
+                    $move_file = wp_handle_upload( $uploaded_file, $upload_overrides );
+
+                    if ( $move_file && ! isset( $move_file['error'] ) ) {
+                        $attachment = array(
+                            'post_mime_type' => $move_file['type'],
+                            'post_title'     => preg_replace( '/\.[^.]+$/', '', basename( $move_file['file'] ) ),
+                            'post_content'   => '',
+                            'post_status'    => 'inherit'
+                        );
+                        $attach_id = wp_insert_attachment( $attachment, $move_file['file'], $invoice_id );
+                        update_post_meta( $invoice_id, '_cmp_invoice_file_id', $attach_id );
+                    }
                 }
             }
 
