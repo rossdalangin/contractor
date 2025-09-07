@@ -206,3 +206,56 @@ function cmp_export_invoices_to_csv() {
     }
 }
 add_action( 'init', 'cmp_export_invoices_to_csv' );
+
+/**
+ * Add custom columns to the task list table.
+ *
+ * @param array $columns The existing columns.
+ * @return array The modified columns.
+ */
+function cmp_add_task_columns( $columns ) {
+    $new_columns = array();
+    foreach ( $columns as $key => $value ) {
+        $new_columns[$key] = $value;
+        if ( $key === 'title' ) {
+            $new_columns['task_client'] = __( 'Client', 'contractor-management-portal' );
+            $new_columns['task_channel'] = __( 'Channel', 'contractor-management-portal' );
+            $new_columns['task_contractor'] = __( 'Contractor', 'contractor-management-portal' );
+        }
+    }
+    return $new_columns;
+}
+add_filter( 'manage_task_posts_columns', 'cmp_add_task_columns' );
+
+/**
+ * Render the custom column content for tasks.
+ *
+ * @param string $column_name The name of the column.
+ * @param int    $post_id     The ID of the post.
+ */
+function cmp_render_task_columns( $column_name, $post_id ) {
+    switch ( $column_name ) {
+        case 'task_client':
+            $client_id = get_post_meta( $post_id, '_cmp_assigned_client', true );
+            if ( $client_id ) {
+                echo '<a href="' . get_edit_post_link( $client_id ) . '">' . esc_html( get_the_title( $client_id ) ) . '</a>';
+            }
+            break;
+        case 'task_channel':
+            $channel_id = get_post_meta( $post_id, '_cmp_assigned_channel', true );
+            if ( $channel_id ) {
+                echo '<a href="' . get_edit_post_link( $channel_id ) . '">' . esc_html( get_the_title( $channel_id ) ) . '</a>';
+            }
+            break;
+        case 'task_contractor':
+            $contractor_id = get_post_meta( $post_id, '_cmp_assigned_contractor', true );
+            if ( $contractor_id ) {
+                $user = get_user_by( 'ID', $contractor_id );
+                if ( $user ) {
+                    echo '<a href="' . get_edit_user_link( $user->ID ) . '">' . esc_html( $user->display_name ) . '</a>';
+                }
+            }
+            break;
+    }
+}
+add_action( 'manage_task_posts_custom_column', 'cmp_render_task_columns', 10, 2 );

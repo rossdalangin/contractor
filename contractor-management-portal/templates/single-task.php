@@ -18,6 +18,16 @@ get_header(); ?>
                 the_title( '<h1 class="entry-title">', '</h1>' );
                 the_content();
 
+                $client_id = get_post_meta( get_the_ID(), '_cmp_assigned_client', true );
+                $channel_id = get_post_meta( get_the_ID(), '_cmp_assigned_channel', true );
+
+                if ( $client_id ) {
+                    echo '<p><strong>' . __( 'Client:', 'contractor-management-portal' ) . '</strong> <a href="' . get_permalink( $client_id ) . '">' . esc_html( get_the_title( $client_id ) ) . '</a></p>';
+                }
+                if ( $channel_id ) {
+                    echo '<p><strong>' . __( 'Channel:', 'contractor-management-portal' ) . '</strong> <a href="' . get_permalink( $channel_id ) . '">' . esc_html( get_the_title( $channel_id ) ) . '</a></p>';
+                }
+
                 // Logic to show the "Submit Invoice" button.
                 // 1. The current user must be the assigned contractor for this task.
                 // 2. An invoice for this task must not have been submitted yet.
