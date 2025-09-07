@@ -83,3 +83,126 @@ function cmp_render_invoice_columns( $column_name, $post_id ) {
     }
 }
 add_action( 'manage_invoice_posts_custom_column', 'cmp_render_invoice_columns', 10, 2 );
+
+/**
+ * Add filters and export button to the invoice list table.
+ */
+function cmp_add_invoice_filters_and_export_button( $post_type ) {
+    if ( 'invoice' !== $post_type ) {
+        return;
+    }
+
+    // Status filter
+    $statuses = get_terms( array( 'taxonomy' => 'invoice-status', 'hide_empty' => false ) );
+    $current_status = isset( $_GET['invoice_status_filter'] ) ? sanitize_text_field( $_GET['invoice_status_filter'] ) : '';
+
+    echo '<select name="invoice_status_filter">';
+    echo '<option value="">' . __( 'All Statuses', 'contractor-management-portal' ) . '</option>';
+    foreach ( $statuses as $status ) {
+        printf(
+            '<option value="%s"%s>%s</option>',
+            esc_attr( $status->slug ),
+            selected( $current_status, $status->slug, false ),
+            esc_html( $status->name )
+        );
+    }
+    echo '</select>';
+
+    // Date range filters
+    $start_date = isset( $_GET['start_date_filter'] ) ? sanitize_text_field( $_GET['start_date_filter'] ) : '';
+    $end_date = isset( $_GET['end_date_filter'] ) ? sanitize_text_field( $_GET['end_date_filter'] ) : '';
+
+    echo '<input type="date" name="start_date_filter" value="' . esc_attr( $start_date ) . '" placeholder="Start Date">';
+    echo '<input type="date" name="end_date_filter" value="' . esc_attr( $end_date ) . '" placeholder="End Date">';
+
+    // Export button
+    submit_button( __( 'Export to CSV', 'contractor-management-portal' ), 'secondary', 'export_invoices_to_csv', false );
+}
+add_action( 'restrict_manage_posts', 'cmp_add_invoice_filters_and_export_button' );
+
+/**
+ * Handle the CSV export of invoices.
+ */
+function cmp_export_invoices_to_csv() {
+    if ( ! isset( $_GET['export_invoices_to_csv'] ) ) {
+        return;
+    }
+
+    if ( ! current_user_can( 'manage_options' ) ) {
+        return;
+    }
+
+    $args = array(
+        'post_type'      => 'invoice',
+        'posts_per_page' => -1,
+        'post_status'    => 'publish',
+    );
+
+    $tax_query = array();
+
+    // Status filter
+    if ( ! empty( $_GET['invoice_status_filter'] ) ) {
+        $tax_query[] = array(
+            'taxonomy' => 'invoice-status',
+            'field'    => 'slug',
+            'terms'    => sanitize_text_field( $_GET['invoice_status_filter'] ),
+        );
+    }
+
+    // Date range filter
+    if ( ! empty( $_GET['start_date_filter'] ) || ! empty( $_GET['end_date_filter'] ) ) {
+        $date_query = array();
+        if ( ! empty( $_GET['start_date_filter'] ) ) {
+            $date_query['after'] = sanitize_text_field( $_GET['start_date_filter'] );
+        }
+        if ( ! empty( $_GET['end_date_filter'] ) ) {
+            $date_query['before'] = sanitize_text_field( $_GET['end_date_filter'] );
+        }
+        $date_query['inclusive'] = true;
+        $args['date_query'] = $date_query;
+    }
+
+
+    if ( ! empty( $tax_query ) ) {
+        $args['tax_query'] = $tax_query;
+    }
+
+    $invoices_query = new WP_Query( $args );
+
+    if ( $invoices_query->have_posts() ) {
+        $filename = 'invoices-' . date( 'Y-m-d' ) . '.csv';
+
+        header( 'Content-Type: text/csv' );
+        header( 'Content-Disposition: attachment; filename=' . $filename );
+
+        $output = fopen( 'php://output', 'w' );
+
+        fputcsv( $output, array( 'Invoice Title', 'Task Title', 'Contractor', 'Amount', 'Due Date', 'Status' ) );
+
+        while ( $invoices_query->have_posts() ) {
+            $invoices_query->the_post();
+            $invoice_id = get_the_ID();
+            $task_id = get_post_meta( $invoice_id, '_cmp_task_id', true );
+            $task = get_post( $task_id );
+            $contractor_id = get_post_meta( $task_id, '_cmp_assigned_contractor', true );
+            $contractor = get_user_by( 'ID', $contractor_id );
+            $status_terms = wp_get_post_terms( $invoice_id, 'invoice-status' );
+            $status = ! empty( $status_terms ) ? $status_terms[0]->name : '';
+
+            $row = array(
+                get_the_title(),
+                $task ? $task->post_title : '',
+                $contractor ? $contractor->display_name : '',
+                get_post_meta( $invoice_id, '_cmp_invoice_amount', true ),
+                get_post_meta( $invoice_id, '_cmp_invoice_due_date', true ),
+                $status,
+            );
+
+            fputcsv( $output, $row );
+        }
+
+        fclose( $output );
+        exit;
+    }
+}
+add_action( 'init', 'cmp_export_invoices_to_csv' );
