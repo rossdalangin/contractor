@@ -38,9 +38,33 @@ if ( is_admin() ) {
 function cmp_plugin_activate() {
     cmp_add_roles();
     cmp_create_dashboard_page();
+    cmp_create_client_dashboard_page();
     cmp_insert_invoice_statuses();
 }
 register_activation_hook( __FILE__, 'cmp_plugin_activate' );
+
+/**
+ * Create the client dashboard page on plugin activation.
+ */
+function cmp_create_client_dashboard_page() {
+    // Check if the page already exists
+    $dashboard_page = get_page_by_path( 'client-dashboard' );
+
+    if ( ! $dashboard_page ) {
+        // Create post object
+        $page = array(
+            'post_title'    => __( 'Client Dashboard', 'contractor-management-portal' ),
+            'post_name'     => 'client-dashboard',
+            'post_status'   => 'publish',
+            'post_type'     => 'page',
+            'post_author'   => 1, // The admin user
+            'page_template' => 'templates/client-dashboard-template.php'
+        );
+
+        // Insert the post into the database
+        wp_insert_post( $page );
+    }
+}
 register_deactivation_hook( __FILE__, 'cmp_remove_roles' );
 
 /**
@@ -50,8 +74,9 @@ register_deactivation_hook( __FILE__, 'cmp_remove_roles' );
  * @return array The modified list of page templates.
  */
 function cmp_add_dashboard_template_to_select( $templates ) {
-    // Add our template
+    // Add our templates
     $templates['templates/dashboard-template.php'] = __( 'Contractor Dashboard', 'contractor-management-portal' );
+    $templates['templates/client-dashboard-template.php'] = __( 'Client Dashboard', 'contractor-management-portal' );
 
     return $templates;
 }
@@ -66,6 +91,9 @@ add_filter( 'theme_page_templates', 'cmp_add_dashboard_template_to_select' );
 function cmp_load_dashboard_template( $template ) {
     if ( get_page_template_slug() === 'templates/dashboard-template.php' ) {
         return plugin_dir_path( __FILE__ ) . 'templates/dashboard-template.php';
+    }
+    if ( get_page_template_slug() === 'templates/client-dashboard-template.php' ) {
+        return plugin_dir_path( __FILE__ ) . 'templates/client-dashboard-template.php';
     }
     if ( is_singular( 'task' ) ) {
         return plugin_dir_path( __FILE__ ) . 'templates/single-task.php';

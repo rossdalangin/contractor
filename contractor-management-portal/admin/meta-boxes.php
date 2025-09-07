@@ -267,3 +267,80 @@ function cmp_add_edit_form_multipart_encoding() {
     echo ' enctype="multipart/form-data"';
 }
 add_action( 'post_edit_form_tag', 'cmp_add_edit_form_multipart_encoding' );
+
+/**
+ * Adds a meta box to the client post type.
+ */
+function cmp_add_client_meta_box() {
+    add_meta_box(
+        'cmp_client_user_meta_box',
+        __( 'Assign User', 'contractor-management-portal' ),
+        'cmp_render_client_user_meta_box',
+        'client',
+        'side',
+        'default'
+    );
+}
+add_action( 'add_meta_boxes', 'cmp_add_client_meta_box' );
+
+/**
+ * Renders the client user meta box.
+ *
+ * @param WP_Post $post The post object.
+ */
+function cmp_render_client_user_meta_box( $post ) {
+    // Add nonce for security and authentication.
+    wp_nonce_field( 'cmp_save_client_user_meta', 'cmp_client_user_nonce' );
+
+    // Get the list of users with the 'client' role.
+    $clients = get_users( array( 'role' => 'client' ) );
+    $assigned_user_id = get_post_meta( $post->ID, '_cmp_assigned_user_id', true );
+
+    ?>
+    <label for="cmp_client_user_select"><?php _e( 'Select a User:', 'contractor-management-portal' ); ?></label>
+    <select name="cmp_assigned_user_id" id="cmp_client_user_select" style="width:100%;">
+        <option value=""><?php _e( 'Not Assigned', 'contractor-management-portal' ); ?></option>
+        <?php foreach ( $clients as $client ) : ?>
+            <option value="<?php echo esc_attr( $client->ID ); ?>" <?php selected( $assigned_user_id, $client->ID ); ?>>
+                <?php echo esc_html( $client->display_name ); ?>
+            </option>
+        <?php endforeach; ?>
+    </select>
+    <?php
+}
+
+/**
+ * Handles the saving of the client user meta box.
+ *
+ * @param int $post_id Post ID.
+ */
+function cmp_save_client_user_meta( $post_id ) {
+    // Check if our nonce is set.
+    if ( ! isset( $_POST['cmp_client_user_nonce'] ) ) {
+        return;
+    }
+
+    // Verify that the nonce is valid.
+    if ( ! wp_verify_nonce( $_POST['cmp_client_user_nonce'], 'cmp_save_client_user_meta' ) ) {
+        return;
+    }
+
+    // If this is an autosave, our form has not been submitted, so we don't want to do anything.
+    if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+        return;
+    }
+
+    // Check the user's permissions.
+    if ( isset( $_POST['post_type'] ) && 'client' == $_POST['post_type'] ) {
+        if ( ! current_user_can( 'edit_post', $post_id ) ) {
+            return;
+        }
+    }
+
+    // Sanitize and save the assigned user ID.
+    if ( isset( $_POST['cmp_assigned_user_id'] ) ) {
+        $user_id = sanitize_text_field( $_POST['cmp_assigned_user_id'] );
+        update_post_meta( $post_id, '_cmp_assigned_user_id', $user_id );
+    }
+}
+add_action( 'save_post', 'cmp_save_client_user_meta' );
