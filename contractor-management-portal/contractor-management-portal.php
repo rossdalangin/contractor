@@ -115,8 +115,43 @@ function cmp_handle_invoice_submission() {
         if ( $invoice_id ) {
             // Assign the task ID to the invoice.
             update_post_meta( $invoice_id, '_cmp_task_id', $task_id );
+
+            // Sanitize and save the amount.
+            if ( isset( $_POST['cmp_invoice_amount'] ) ) {
+                $amount = sanitize_text_field( $_POST['cmp_invoice_amount'] );
+                update_post_meta( $invoice_id, '_cmp_invoice_amount', $amount );
+            }
+
+            // Sanitize and save the due date.
+            if ( isset( $_POST['cmp_invoice_due_date'] ) ) {
+                $due_date = sanitize_text_field( $_POST['cmp_invoice_due_date'] );
+                update_post_meta( $invoice_id, '_cmp_invoice_due_date', $due_date );
+            }
+
+            // Handle the file upload.
+            if ( ! empty( $_FILES['cmp_invoice_file']['name'] ) ) {
+                // Include the necessary file for `wp_handle_upload`.
+                require_once( ABSPATH . 'wp-admin/includes/file.php' );
+
+                $uploaded_file = $_FILES['cmp_invoice_file'];
+                $upload_overrides = array( 'test_form' => false );
+                $move_file = wp_handle_upload( $uploaded_file, $upload_overrides );
+
+                if ( $move_file && ! isset( $move_file['error'] ) ) {
+                    $attachment = array(
+                        'post_mime_type' => $move_file['type'],
+                        'post_title'     => preg_replace( '/\.[^.]+$/', '', basename( $move_file['file'] ) ),
+                        'post_content'   => '',
+                        'post_status'    => 'inherit'
+                    );
+                    $attach_id = wp_insert_attachment( $attachment, $move_file['file'], $invoice_id );
+                    update_post_meta( $invoice_id, '_cmp_invoice_file_id', $attach_id );
+                }
+            }
+
             // Set the invoice status to 'Pending'.
             wp_set_object_terms( $invoice_id, 'Pending', 'invoice-status' );
+
             // Redirect to the same page to prevent form resubmission.
             wp_redirect( get_permalink( $task_id ) );
             exit;

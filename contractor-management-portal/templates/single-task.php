@@ -40,10 +40,24 @@ get_header(); ?>
 
                     if ( ! $invoice_query->have_posts() ) {
                         ?>
-                        <form method="post">
+                        <form method="post" enctype="multipart/form-data">
                             <input type="hidden" name="action" value="cmp_submit_invoice">
                             <input type="hidden" name="task_id" value="<?php echo get_the_ID(); ?>">
                             <?php wp_nonce_field( 'cmp_submit_invoice_nonce', '_wpnonce' ); ?>
+
+                            <p>
+                                <label for="cmp_invoice_amount"><?php _e( 'Amount:', 'contractor-management-portal' ); ?></label><br>
+                                <input type="text" id="cmp_invoice_amount" name="cmp_invoice_amount" value="" required />
+                            </p>
+                            <p>
+                                <label for="cmp_invoice_due_date"><?php _e( 'Due Date:', 'contractor-management-portal' ); ?></label><br>
+                                <input type="date" id="cmp_invoice_due_date" name="cmp_invoice_due_date" value="" required />
+                            </p>
+                            <p>
+                                <label for="cmp_invoice_file"><?php _e( 'Invoice File:', 'contractor-management-portal' ); ?></label><br>
+                                <input type="file" id="cmp_invoice_file" name="cmp_invoice_file" value="" />
+                            </p>
+
                             <input type="submit" value="<?php _e( 'Submit Invoice', 'contractor-management-portal' ); ?>">
                         </form>
                         <?php

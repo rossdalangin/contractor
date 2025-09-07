@@ -46,3 +46,40 @@ function cmp_admin_dashboard_page() {
     </div>
     <?php
 }
+
+/**
+ * Add custom columns to the invoice list table.
+ *
+ * @param array $columns The existing columns.
+ * @return array The modified columns.
+ */
+function cmp_add_invoice_columns( $columns ) {
+    $new_columns = array();
+    foreach ( $columns as $key => $value ) {
+        $new_columns[$key] = $value;
+        if ( $key === 'title' ) {
+            $new_columns['invoice_amount'] = __( 'Amount', 'contractor-management-portal' );
+            $new_columns['invoice_due_date'] = __( 'Due Date', 'contractor-management-portal' );
+        }
+    }
+    return $new_columns;
+}
+add_filter( 'manage_invoice_posts_columns', 'cmp_add_invoice_columns' );
+
+/**
+ * Render the custom column content.
+ *
+ * @param string $column_name The name of the column.
+ * @param int    $post_id     The ID of the post.
+ */
+function cmp_render_invoice_columns( $column_name, $post_id ) {
+    switch ( $column_name ) {
+        case 'invoice_amount':
+            echo esc_html( get_post_meta( $post_id, '_cmp_invoice_amount', true ) );
+            break;
+        case 'invoice_due_date':
+            echo esc_html( get_post_meta( $post_id, '_cmp_invoice_due_date', true ) );
+            break;
+    }
+}
+add_action( 'manage_invoice_posts_custom_column', 'cmp_render_invoice_columns', 10, 2 );
