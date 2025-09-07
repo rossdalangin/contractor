@@ -12,15 +12,13 @@ function cmp_register_settings() {
     // Register a setting group.
     register_setting( 'cmp_settings_group', 'cmp_options', 'cmp_sanitize_options' );
 
-    // Add a section.
+    // Google Drive Section
     add_settings_section(
         'cmp_google_drive_section',
         'Google Drive API Settings',
         'cmp_google_drive_section_callback',
         'cmp-settings'
     );
-
-    // Add fields.
     add_settings_field(
         'cmp_google_client_id',
         'Google Client ID',
@@ -34,6 +32,28 @@ function cmp_register_settings() {
         'cmp_google_client_secret_callback',
         'cmp-settings',
         'cmp_google_drive_section'
+    );
+
+    // Stripe Section
+    add_settings_section(
+        'cmp_stripe_section',
+        'Stripe API Settings',
+        'cmp_stripe_section_callback',
+        'cmp-settings'
+    );
+    add_settings_field(
+        'cmp_stripe_publishable_key',
+        'Stripe Publishable Key',
+        'cmp_stripe_publishable_key_callback',
+        'cmp-settings',
+        'cmp_stripe_section'
+    );
+    add_settings_field(
+        'cmp_stripe_secret_key',
+        'Stripe Secret Key',
+        'cmp_stripe_secret_key_callback',
+        'cmp-settings',
+        'cmp_stripe_section'
     );
 }
 add_action( 'admin_init', 'cmp_register_settings' );
@@ -49,6 +69,12 @@ function cmp_sanitize_options( $input ) {
     }
     if ( isset( $input['google_client_secret'] ) ) {
         $output['google_client_secret'] = sanitize_text_field( $input['google_client_secret'] );
+    }
+    if ( isset( $input['stripe_publishable_key'] ) ) {
+        $output['stripe_publishable_key'] = sanitize_text_field( $input['stripe_publishable_key'] );
+    }
+    if ( isset( $input['stripe_secret_key'] ) ) {
+        $output['stripe_secret_key'] = sanitize_text_field( $input['stripe_secret_key'] );
     }
 
     return $output;
@@ -135,4 +161,26 @@ function cmp_google_client_secret_callback() {
     $options = get_option( 'cmp_options' );
     $client_secret = isset( $options['google_client_secret'] ) ? $options['google_client_secret'] : '';
     echo '<input type="text" id="cmp_google_client_secret" name="cmp_options[google_client_secret]" value="' . esc_attr( $client_secret ) . '" size="50" />';
+}
+
+/**
+ * Stripe section callback.
+ */
+function cmp_stripe_section_callback() {
+    echo '<p>Enter your Stripe API keys below. You can get these from your <a href="https://dashboard.stripe.com/apikeys" target="_blank">Stripe dashboard</a>.</p>';
+}
+
+/**
+ * Stripe field callbacks.
+ */
+function cmp_stripe_publishable_key_callback() {
+    $options = get_option( 'cmp_options' );
+    $publishable_key = isset( $options['stripe_publishable_key'] ) ? $options['stripe_publishable_key'] : '';
+    echo '<input type="text" id="cmp_stripe_publishable_key" name="cmp_options[stripe_publishable_key]" value="' . esc_attr( $publishable_key ) . '" size="50" />';
+}
+
+function cmp_stripe_secret_key_callback() {
+    $options = get_option( 'cmp_options' );
+    $secret_key = isset( $options['stripe_secret_key'] ) ? $options['stripe_secret_key'] : '';
+    echo '<input type="text" id="cmp_stripe_secret_key" name="cmp_options[stripe_secret_key]" value="' . esc_attr( $secret_key ) . '" size="50" />';
 }

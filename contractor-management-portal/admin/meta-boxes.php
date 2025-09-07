@@ -201,6 +201,24 @@ function cmp_render_invoice_meta_box( $post ) {
             <?php echo wp_get_attachment_link( $wp_file_id ); ?>
         <?php endif; ?>
     </p>
+
+    <hr>
+
+    <?php
+    // Add Pay with Stripe button
+    $status_terms = wp_get_post_terms( $post->ID, 'invoice-status' );
+    $status = ! empty( $status_terms ) ? $status_terms[0]->slug : '';
+
+    if ( 'approved' === $status ) {
+        $pay_url = add_query_arg( array(
+            'action' => 'cmp_pay_with_stripe',
+            'invoice_id' => $post->ID,
+            '_wpnonce' => wp_create_nonce( 'cmp_pay_with_stripe_' . $post->ID )
+        ), admin_url() );
+
+        echo '<a href="' . esc_url( $pay_url ) . '" class="button button-primary">' . __( 'Pay with Stripe', 'contractor-management-portal' ) . '</a>';
+    }
+    ?>
     <?php
 }
 

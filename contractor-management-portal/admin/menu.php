@@ -193,6 +193,121 @@ function cmp_render_reporting_page() {
 }
 
 /**
+ * Handle the Stripe payment request.
+ */
+function cmp_handle_stripe_payment() {
+    if ( ! isset( $_GET['action'] ) || 'cmp_pay_with_stripe' !== $_GET['action'] ) {
+        return;
+    }
+
+    if ( ! isset( $_GET['invoice_id'] ) || ! isset( $_GET['_wpnonce'] ) ) {
+        return;
+    }
+
+    $invoice_id = intval( $_GET['invoice_id'] );
+
+    if ( ! wp_verify_nonce( $_GET['_wpnonce'], 'cmp_pay_with_stripe_' . $invoice_id ) ) {
+        wp_die( 'Invalid nonce.' );
+    }
+
+    $options = get_option( 'cmp_options' );
+    $secret_key = isset( $options['stripe_secret_key'] ) ? $options['stripe_secret_key'] : '';
+
+    if ( empty( $secret_key ) ) {
+        wp_die( 'Stripe API keys are not configured.' );
+    }
+
+    $invoice = get_post( $invoice_id );
+    $amount = get_post_meta( $invoice_id, '_cmp_invoice_amount', true );
+    $amount_in_cents = $amount * 100;
+
+    \Stripe\Stripe::setApiKey( $secret_key );
+
+    try {
+        $checkout_session = \Stripe\Checkout\Session::create( [
+            'payment_method_types' => ['card'],
+            'line_items' => [[
+                'price_data' => [
+                    'currency' => 'usd',
+                    'product_data' => [
+                        'name' => $invoice->post_title,
+                    ],
+                    'unit_amount' => $amount_in_cents,
+                ],
+                'quantity' => 1,
+            ]],
+            'mode' => 'payment',
+            'success_url' => admin_url( 'post.php?post=' . $invoice_id . '&action=edit&payment=success&session_id={CHECKOUT_SESSION_ID}' ),
+            'cancel_url' => admin_url( 'post.php?post=' . $invoice_id . '&action=edit&payment=cancelled' ),
+            'metadata' => [
+                'invoice_id' => $invoice_id,
+            ]
+        ] );
+
+        wp_redirect( $checkout_session->url );
+        exit;
+
+    } catch ( \Stripe\Exception\ApiErrorException $e ) {
+        wp_die( 'Error creating Stripe Checkout session: ' . $e->getMessage() );
+    }
+}
+add_action( 'admin_init', 'cmp_handle_stripe_payment' );
+
+/**
+ * Handle the Stripe payment success.
+ */
+function cmp_handle_stripe_payment_success() {
+    if ( ! isset( $_GET['payment'] ) || 'success' !== $_GET['payment'] ) {
+        return;
+    }
+
+    if ( ! isset( $_GET['session_id'] ) ) {
+        return;
+    }
+
+    $session_id = sanitize_text_field( $_GET['session_id'] );
+    $options = get_option( 'cmp_options' );
+    $secret_key = isset( $options['stripe_secret_key'] ) ? $options['stripe_secret_key'] : '';
+
+    if ( empty( $secret_key ) ) {
+        return;
+    }
+
+    \Stripe\Stripe::setApiKey( $secret_key );
+
+    try {
+        $session = \Stripe\Checkout\Session::retrieve( $session_id );
+        $invoice_id = $session->metadata->invoice_id;
+
+        if ( 'paid' === $session->payment_status ) {
+            // Update invoice status to 'Paid'
+            wp_set_post_terms( $invoice_id, 'Paid', 'invoice-status' );
+            // Store the Stripe transaction ID
+            update_post_meta( $invoice_id, '_cmp_stripe_transaction_id', $session->payment_intent );
+
+            // Add an admin notice
+            add_action( 'admin_notices', 'cmp_payment_success_admin_notice' );
+        }
+
+    } catch ( \Stripe\Exception\ApiErrorException $e ) {
+        // Handle error
+        wp_die( 'Error retrieving Stripe Checkout session: ' . $e->getMessage() );
+    }
+}
+add_action( 'admin_init', 'cmp_handle_stripe_payment_success' );
+
+/**
+ * Display a success notice.
+ */
+function cmp_payment_success_admin_notice() {
+    ?>
+    <div class="notice notice-success is-dismissible">
+        <p><?php _e( 'Payment was successful and the invoice status has been updated to Paid.', 'contractor-management-portal' ); ?></p>
+    </div>
+    <?php
+}
+
+/**
  * Render admin dashboard page
  */
 function cmp_admin_dashboard_page() {
