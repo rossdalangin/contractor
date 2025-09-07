@@ -22,9 +22,9 @@ function cmp_admin_menu() {
 add_action( 'admin_menu', 'cmp_admin_menu' );
 
 /**
- * Add Contractors submenu.
+ * Add admin submenus.
  */
-function cmp_add_contractors_submenu() {
+function cmp_add_submenus() {
     add_submenu_page(
         'contractor-management-portal',
         'Contractors',
@@ -32,8 +32,157 @@ function cmp_add_contractors_submenu() {
         'manage_options',
         'users.php?role=contractor'
     );
+    add_submenu_page(
+        'contractor-management-portal',
+        __( 'Reporting', 'contractor-management-portal' ),
+        __( 'Reporting', 'contractor-management-portal' ),
+        'manage_options',
+        'cmp-reporting',
+        'cmp_render_reporting_page'
+    );
 }
-add_action('admin_menu', 'cmp_add_contractors_submenu');
+add_action('admin_menu', 'cmp_add_submenus');
+
+/**
+ * Render reporting page.
+ */
+function cmp_render_reporting_page() {
+    ?>
+    <div class="wrap">
+        <h1><?php _e( 'Reporting & Analytics', 'contractor-management-portal' ); ?></h1>
+
+        <h2><?php _e( 'Financial Overview', 'contractor-management-portal' ); ?></h2>
+        <?php
+        $args = array(
+            'post_type' => 'invoice',
+            'posts_per_page' => -1,
+        );
+        $invoices = new WP_Query( $args );
+
+        $financial_data = array(
+            'paid' => 0,
+            'approved' => 0,
+            'pending' => 0,
+            'rejected' => 0,
+            'total' => 0,
+        );
+
+        if ( $invoices->have_posts() ) {
+            while ( $invoices->have_posts() ) {
+                $invoices->the_post();
+                $amount = (float) get_post_meta( get_the_ID(), '_cmp_invoice_amount', true );
+                $financial_data['total'] += $amount;
+
+                $statuses = wp_get_post_terms( get_the_ID(), 'invoice-status' );
+                if ( ! empty( $statuses ) ) {
+                    $status_slug = $statuses[0]->slug;
+                    if ( isset( $financial_data[ $status_slug ] ) ) {
+                        $financial_data[ $status_slug ] += $amount;
+                    }
+                }
+            }
+            wp_reset_postdata();
+        }
+        ?>
+        <table class="widefat fixed" cellspacing="0">
+            <thead>
+                <tr>
+                    <th id="columnname" class="manage-column column-columnname" scope="col"><?php _e( 'Status', 'contractor-management-portal' ); ?></th>
+                    <th id="columnname" class="manage-column column-columnname" scope="col"><?php _e( 'Total Amount', 'contractor-management-portal' ); ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><?php _e( 'Paid', 'contractor-management-portal' ); ?></td>
+                    <td><?php echo esc_html( number_format( $financial_data['paid'], 2 ) ); ?></td>
+                </tr>
+                <tr class="alternate">
+                    <td><?php _e( 'Approved (Unpaid)', 'contractor-management-portal' ); ?></td>
+                    <td><?php echo esc_html( number_format( $financial_data['approved'], 2 ) ); ?></td>
+                </tr>
+                <tr>
+                    <td><?php _e( 'Pending', 'contractor-management-portal' ); ?></td>
+                    <td><?php echo esc_html( number_format( $financial_data['pending'], 2 ) ); ?></td>
+                </tr>
+                <tr class="alternate">
+                    <td><?php _e( 'Rejected', 'contractor-management-portal' ); ?></td>
+                    <td><?php echo esc_html( number_format( $financial_data['rejected'], 2 ) ); ?></td>
+                </tr>
+            </tbody>
+            <tfoot>
+                <tr>
+                    <th scope="row"><strong><?php _e( 'Total Invoiced', 'contractor-management-portal' ); ?></strong></th>
+                    <td><strong><?php echo esc_html( number_format( $financial_data['total'], 2 ) ); ?></strong></td>
+                </tr>
+            </tfoot>
+        </table>
+
+        <h2><?php _e( 'Contractor Productivity', 'contractor-management-portal' ); ?></h2>
+        <?php
+        $contractors = get_users( array( 'role' => 'contractor' ) );
+        ?>
+        <table class="widefat fixed" cellspacing="0">
+            <thead>
+                <tr>
+                    <th id="columnname" class="manage-column column-columnname" scope="col"><?php _e( 'Contractor', 'contractor-management-portal' ); ?></th>
+                    <th id="columnname" class="manage-column column-columnname" scope="col"><?php _e( 'Total Tasks Assigned', 'contractor-management-portal' ); ?></th>
+                    <th id="columnname" class="manage-column column-columnname" scope="col"><?php _e( 'Total Invoiced Amount', 'contractor-management-portal' ); ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php
+                $i = 0;
+                foreach ( $contractors as $contractor ) :
+                    $i++;
+                    $class = ( $i % 2 == 0 ) ? 'alternate' : '';
+
+                    // Get total tasks assigned
+                    $task_args = array(
+                        'post_type' => 'task',
+                        'posts_per_page' => -1,
+                        'meta_key' => '_cmp_assigned_contractor',
+                        'meta_value' => $contractor->ID
+                    );
+                    $tasks = new WP_Query( $task_args );
+                    $total_tasks = $tasks->found_posts;
+
+                    // Get total invoiced amount
+                    $total_invoiced = 0;
+                    if ( $tasks->have_posts() ) {
+                        $task_ids = wp_list_pluck( $tasks->posts, 'ID' );
+                        $invoice_args = array(
+                            'post_type' => 'invoice',
+                            'posts_per_page' => -1,
+                            'meta_query' => array(
+                                array(
+                                    'key' => '_cmp_task_id',
+                                    'value' => $task_ids,
+                                    'compare' => 'IN'
+                                )
+                            )
+                        );
+                        $invoices = new WP_Query( $invoice_args );
+                        if ( $invoices->have_posts() ) {
+                            while ( $invoices->have_posts() ) {
+                                $invoices->the_post();
+                                $total_invoiced += (float) get_post_meta( get_the_ID(), '_cmp_invoice_amount', true );
+                            }
+                            wp_reset_postdata();
+                        }
+                    }
+                    ?>
+                    <tr class="<?php echo $class; ?>">
+                        <td><?php echo esc_html( $contractor->display_name ); ?></td>
+                        <td><?php echo esc_html( $total_tasks ); ?></td>
+                        <td><?php echo esc_html( number_format( $total_invoiced, 2 ) ); ?></td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+
+    </div>
+    <?php
+}
 
 /**
  * Render admin dashboard page
