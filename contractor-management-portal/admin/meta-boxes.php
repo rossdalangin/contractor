@@ -309,21 +309,6 @@ function cmp_render_invoice_meta_box( $post ) {
     <hr>
 
     <?php
-    // Add Pay with Stripe button
-    $status_terms = wp_get_post_terms( $post->ID, 'invoice-status' );
-    $status = ! empty( $status_terms ) ? $status_terms[0]->slug : '';
-
-    if ( 'approved' === $status ) {
-        $pay_url = add_query_arg( array(
-            'action' => 'cmp_pay_with_stripe',
-            'invoice_id' => $post->ID,
-            '_wpnonce' => wp_create_nonce( 'cmp_pay_with_stripe_' . $post->ID )
-        ), admin_url() );
-
-        echo '<a href="' . esc_url( $pay_url ) . '" class="button button-primary">' . __( 'Pay with Stripe', 'contractor-management-portal' ) . '</a>';
-    }
-    ?>
-    <?php
 }
 
 /**
@@ -368,51 +353,21 @@ function cmp_save_invoice_meta( $post_id ) {
 
     // Handle the file upload.
     if ( ! empty( $_FILES['cmp_invoice_file']['name'] ) ) {
-        $options = get_option( 'cmp_options' );
-        // Only attempt Google Drive upload if the class exists and token is set.
-        if ( class_exists('Google_Client') && isset( $options['google_access_token']['access_token'] ) ) {
-            // Google Drive upload
-            $client = cmp_get_google_client();
-            $client->setAccessToken( $options['google_access_token'] );
+        // WordPress Media Library upload
+        require_once( ABSPATH . 'wp-admin/includes/file.php' );
+        $uploaded_file = $_FILES['cmp_invoice_file'];
+        $upload_overrides = array( 'test_form' => false );
+        $move_file = wp_handle_upload( $uploaded_file, $upload_overrides );
 
-            // Refresh the token if it's expired.
-            if ( $client->isAccessTokenExpired() ) {
-                $client->fetchAccessTokenWithRefreshToken( $client->getRefreshToken() );
-                $options['google_access_token'] = $client->getAccessToken();
-                update_option( 'cmp_options', $options );
-            }
-
-            $drive_service = new Google_Service_Drive( $client );
-            $file_metadata = new Google_Service_Drive_DriveFile( array(
-                'name' => basename( $_FILES['cmp_invoice_file']['name'] )
-            ) );
-            $content = file_get_contents( $_FILES['cmp_invoice_file']['tmp_name'] );
-            $file = $drive_service->files->create( $file_metadata, array(
-                'data' => $content,
-                'mimeType' => $_FILES['cmp_invoice_file']['type'],
-                'uploadType' => 'multipart',
-                'fields' => 'id'
-            ) );
-
-            update_post_meta( $post_id, '_cmp_invoice_gdrive_file_id', $file->id );
-
-        } else {
-            // WordPress Media Library upload
-            require_once( ABSPATH . 'wp-admin/includes/file.php' );
-            $uploaded_file = $_FILES['cmp_invoice_file'];
-            $upload_overrides = array( 'test_form' => false );
-            $move_file = wp_handle_upload( $uploaded_file, $upload_overrides );
-
-            if ( $move_file && ! isset( $move_file['error'] ) ) {
-                $attachment = array(
-                    'post_mime_type' => $move_file['type'],
-                    'post_title'     => preg_replace( '/\.[^.]+$/', '', basename( $move_file['file'] ) ),
-                    'post_content'   => '',
-                    'post_status'    => 'inherit'
-                );
-                $attach_id = wp_insert_attachment( $attachment, $move_file['file'], $post_id );
-                update_post_meta( $post_id, '_cmp_invoice_file_id', $attach_id );
-            }
+        if ( $move_file && ! isset( $move_file['error'] ) ) {
+            $attachment = array(
+                'post_mime_type' => $move_file['type'],
+                'post_title'     => preg_replace( '/\.[^.]+$/', '', basename( $move_file['file'] ) ),
+                'post_content'   => '',
+                'post_status'    => 'inherit'
+            );
+            $attach_id = wp_insert_attachment( $attachment, $move_file['file'], $post_id );
+            update_post_meta( $post_id, '_cmp_invoice_file_id', $attach_id );
         }
     }
 
