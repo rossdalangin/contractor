@@ -259,6 +259,51 @@ function cmp_render_reporting_page() {
 }
 
 /**
+ * Handle the Mark as Awaiting COD action.
+ */
+function cmp_handle_mark_cod() {
+    if ( ! isset( $_GET['action'] ) || 'cmp_mark_cod' !== $_GET['action'] ) {
+        return;
+    }
+
+    if ( ! isset( $_GET['invoice_id'] ) || ! isset( $_GET['_wpnonce'] ) ) {
+        return;
+    }
+
+    $invoice_id = intval( $_GET['invoice_id'] );
+
+    if ( ! wp_verify_nonce( $_GET['_wpnonce'], 'cmp_mark_cod_' . $invoice_id ) ) {
+        wp_die( 'Invalid nonce.' );
+    }
+
+    if ( ! current_user_can( 'edit_post', $invoice_id ) ) {
+        wp_die( 'You do not have permission to do this.' );
+    }
+
+    // Update invoice status to 'Awaiting COD Payment'
+    wp_set_post_terms( $invoice_id, 'Awaiting COD Payment', 'invoice-status' );
+
+    // Add an admin notice
+    add_action( 'admin_notices', 'cmp_mark_cod_success_admin_notice' );
+
+    // Redirect back to the invoice edit page
+    wp_safe_redirect( wp_get_referer() );
+    exit;
+}
+add_action( 'admin_init', 'cmp_handle_mark_cod' );
+
+/**
+ * Display a success notice for marking COD.
+ */
+function cmp_mark_cod_success_admin_notice() {
+    ?>
+    <div class="notice notice-success is-dismissible">
+        <p><?php _e( 'Invoice has been marked as Awaiting COD Payment.', 'contractor-management-portal' ); ?></p>
+    </div>
+    <?php
+}
+
+/**
  * Render the documents page.
  */
 function cmp_render_documents_page() {

@@ -285,10 +285,11 @@ add_action( 'init', 'cmp_register_taxonomies', 0 );
  */
 function cmp_insert_invoice_statuses() {
     $statuses = array(
-        'Pending'  => 'pending',
-        'Approved' => 'approved',
-        'Paid'     => 'paid',
-        'Rejected' => 'rejected',
+        'Pending'             => 'pending',
+        'Approved'            => 'approved',
+        'Paid'                => 'paid',
+        'Rejected'            => 'rejected',
+        'Awaiting COD Payment' => 'awaiting-cod-payment',
     );
 
     foreach ( $statuses as $status => $slug ) {

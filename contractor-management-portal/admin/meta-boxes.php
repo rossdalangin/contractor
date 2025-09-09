@@ -309,6 +309,22 @@ function cmp_render_invoice_meta_box( $post ) {
     <hr>
 
     <?php
+    $options = get_option( 'cmp_options' );
+    $cod_enabled = isset( $options['cod_enable'] ) && $options['cod_enable'] == 1;
+    $status_terms = wp_get_post_terms( $post->ID, 'invoice-status' );
+    $status = ! empty( $status_terms ) ? $status_terms[0]->slug : '';
+
+    if ( $cod_enabled && 'approved' === $status ) {
+        $cod_url = add_query_arg( array(
+            'action' => 'cmp_mark_cod',
+            'invoice_id' => $post->ID,
+            '_wpnonce' => wp_create_nonce( 'cmp_mark_cod_' . $post->ID )
+        ), admin_url() );
+
+        echo '<a href="' . esc_url( $cod_url ) . '" class="button">' . __( 'Mark as Awaiting COD', 'contractor-management-portal' ) . '</a>';
+    }
+    ?>
+    <?php
 }
 
 /**
