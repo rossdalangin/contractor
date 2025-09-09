@@ -42,7 +42,28 @@ get_header(); ?>
             if ( $tasks_query->have_posts() ) :
                 echo '<ul>';
                 while ( $tasks_query->have_posts() ) : $tasks_query->the_post();
-                    echo '<li><a href="' . get_permalink() . '">' . get_the_title() . '</a></li>';
+                    $task_id = get_the_ID();
+
+                    // Get Task Details
+                    $task_statuses = get_the_terms( $task_id, 'task-status' );
+                    $due_date = get_post_meta( $task_id, '_cmp_task_due_date', true );
+                    $budget = get_post_meta( $task_id, '_cmp_task_budget', true );
+
+                    // Build details string
+                    $details = array();
+                    if ( ! empty( $task_statuses ) && ! is_wp_error( $task_statuses ) ) {
+                        $details[] = 'Status: ' . esc_html( wp_list_pluck( $task_statuses, 'name' )[0] );
+                    }
+                    if ( ! empty( $due_date ) ) {
+                        $details[] = 'Due: ' . esc_html( $due_date );
+                    }
+                    if ( ! empty( $budget ) ) {
+                        $details[] = 'Budget: ' . esc_html( $budget );
+                    }
+
+                    $details_string = ! empty($details) ? ' <span class="task-details">(' . implode( ' | ', $details ) . ')</span>' : '';
+
+                    echo '<li><a href="' . get_permalink() . '">' . get_the_title() . '</a>' . $details_string . '</li>';
                 endwhile;
                 echo '</ul>';
                 wp_reset_postdata();

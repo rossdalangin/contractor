@@ -164,6 +164,7 @@ function cmp_register_post_types() {
         'publicly_queryable'    => true,
         'capability_type'       => 'post',
         'show_in_rest'          => true,
+        'taxonomies'            => array( 'task-status' ),
     );
     register_post_type( 'task', $args_task );
 
@@ -251,6 +252,31 @@ function cmp_register_taxonomies() {
         'show_in_rest'      => true,
     );
     register_taxonomy( 'invoice-status', array( 'invoice' ), $args );
+
+    // Task Status Taxonomy
+    $labels_task_status = array(
+        'name'              => _x( 'Task Statuses', 'taxonomy general name', 'contractor-management-portal' ),
+        'singular_name'     => _x( 'Task Status', 'taxonomy singular name', 'contractor-management-portal' ),
+        'search_items'      => __( 'Search Task Statuses', 'contractor-management-portal' ),
+        'all_items'         => __( 'All Task Statuses', 'contractor-management-portal' ),
+        'parent_item'       => __( 'Parent Task Status', 'contractor-management-portal' ),
+        'parent_item_colon' => __( 'Parent Task Status:', 'contractor-management-portal' ),
+        'edit_item'         => __( 'Edit Task Status', 'contractor-management-portal' ),
+        'update_item'       => __( 'Update Task Status', 'contractor-management-portal' ),
+        'add_new_item'      => __( 'Add New Task Status', 'contractor-management-portal' ),
+        'new_item_name'     => __( 'New Task Status Name', 'contractor-management-portal' ),
+        'menu_name'         => __( 'Task Statuses', 'contractor-management-portal' ),
+    );
+    $args_task_status = array(
+        'hierarchical'      => true,
+        'labels'            => $labels_task_status,
+        'show_ui'           => true,
+        'show_admin_column' => true,
+        'query_var'         => true,
+        'rewrite'           => array( 'slug' => 'task-status' ),
+        'show_in_rest'      => true,
+    );
+    register_taxonomy( 'task-status', array( 'task' ), $args_task_status );
 }
 add_action( 'init', 'cmp_register_taxonomies', 0 );
 
@@ -268,6 +294,24 @@ function cmp_insert_invoice_statuses() {
     foreach ( $statuses as $status => $slug ) {
         if ( ! term_exists( $status, 'invoice-status' ) ) {
             wp_insert_term( $status, 'invoice-status', array( 'slug' => $slug ) );
+        }
+    }
+}
+
+/**
+ * Insert default task statuses.
+ */
+function cmp_insert_task_statuses() {
+    $statuses = array(
+        'To Do'       => 'to-do',
+        'In Progress' => 'in-progress',
+        'Completed'   => 'completed',
+        'Approved'    => 'approved',
+    );
+
+    foreach ( $statuses as $status => $slug ) {
+        if ( ! term_exists( $status, 'task-status' ) ) {
+            wp_insert_term( $status, 'task-status', array( 'slug' => $slug ) );
         }
     }
 }

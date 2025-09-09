@@ -160,8 +160,26 @@ function cmp_save_task_meta( $post_id ) {
 
     // Sanitize and save the assigned contractor.
     if ( isset( $_POST['cmp_assigned_contractor'] ) ) {
-        $contractor_id = sanitize_text_field( $_POST['cmp_assigned_contractor'] );
-        update_post_meta( $post_id, '_cmp_assigned_contractor', $contractor_id );
+        $new_contractor_id = sanitize_text_field( $_POST['cmp_assigned_contractor'] );
+        $old_contractor_id = get_post_meta( $post_id, '_cmp_assigned_contractor', true );
+
+        // Only send email if the contractor has changed and is not empty
+        if ( $new_contractor_id && $new_contractor_id !== $old_contractor_id ) {
+            $user = get_userdata( $new_contractor_id );
+            if ( $user ) {
+                $to = $user->user_email;
+                $subject = 'You have been assigned a new task';
+                $task_title = get_the_title( $post_id );
+                $task_url = get_edit_post_link( $post_id );
+                $message = "Hello " . $user->display_name . ",\n\nYou have been assigned a new task: '" . $task_title . "'.\n\nYou can view the task here: " . $task_url;
+                $headers = array('Content-Type: text/plain; charset=UTF-8');
+
+                wp_mail( $to, $subject, $message, $headers );
+            }
+        }
+
+        // Now update the meta
+        update_post_meta( $post_id, '_cmp_assigned_contractor', $new_contractor_id );
     }
 
     // Sanitize and save the assigned client.
@@ -351,7 +369,8 @@ function cmp_save_invoice_meta( $post_id ) {
     // Handle the file upload.
     if ( ! empty( $_FILES['cmp_invoice_file']['name'] ) ) {
         $options = get_option( 'cmp_options' );
-        if ( isset( $options['google_access_token']['access_token'] ) ) {
+        // Only attempt Google Drive upload if the class exists and token is set.
+        if ( class_exists('Google_Client') && isset( $options['google_access_token']['access_token'] ) ) {
             // Google Drive upload
             $client = cmp_get_google_client();
             $client->setAccessToken( $options['google_access_token'] );

@@ -70,6 +70,28 @@ function cmp_register_settings() {
         'cmp-settings',
         'cmp_youtube_section'
     );
+
+    // QuickBooks Section
+    add_settings_section(
+        'cmp_quickbooks_section',
+        'QuickBooks API Settings',
+        'cmp_quickbooks_section_callback',
+        'cmp-settings'
+    );
+    add_settings_field(
+        'cmp_quickbooks_client_id',
+        'QuickBooks Client ID',
+        'cmp_quickbooks_client_id_callback',
+        'cmp-settings',
+        'cmp_quickbooks_section'
+    );
+    add_settings_field(
+        'cmp_quickbooks_client_secret',
+        'QuickBooks Client Secret',
+        'cmp_quickbooks_client_secret_callback',
+        'cmp-settings',
+        'cmp_quickbooks_section'
+    );
 }
 add_action( 'admin_init', 'cmp_register_settings' );
 
@@ -94,6 +116,12 @@ function cmp_sanitize_options( $input ) {
     if ( isset( $input['youtube_api_key'] ) ) {
         $output['youtube_api_key'] = sanitize_text_field( $input['youtube_api_key'] );
     }
+    if ( isset( $input['quickbooks_client_id'] ) ) {
+        $output['quickbooks_client_id'] = sanitize_text_field( $input['quickbooks_client_id'] );
+    }
+    if ( isset( $input['quickbooks_client_secret'] ) ) {
+        $output['quickbooks_client_secret'] = sanitize_text_field( $input['quickbooks_client_secret'] );
+    }
 
     return $output;
 }
@@ -104,6 +132,10 @@ function cmp_sanitize_options( $input ) {
  * @return Google_Client
  */
 function cmp_get_google_client() {
+    if ( ! class_exists('Google_Client') ) {
+        return null;
+    }
+
     $options = get_option( 'cmp_options' );
     $client_id = isset( $options['google_client_id'] ) ? $options['google_client_id'] : '';
     $client_secret = isset( $options['google_client_secret'] ) ? $options['google_client_secret'] : '';
@@ -132,6 +164,9 @@ function cmp_handle_google_oauth_callback() {
     }
 
     $client = cmp_get_google_client();
+    if ( ! $client ) {
+        return;
+    }
     $token = $client->fetchAccessTokenWithAuthCode( $_GET['code'] );
 
     if ( isset( $token['error'] ) ) {
@@ -156,11 +191,16 @@ add_action( 'admin_init', 'cmp_handle_google_oauth_callback' );
 function cmp_google_drive_section_callback() {
     echo '<p>Enter your Google API credentials below. You can get these from the <a href="https://console.developers.google.com/" target="_blank">Google API Console</a>.</p>';
 
+    $client = cmp_get_google_client();
+    if ( ! $client ) {
+        echo '<p class="description" style="color: red;">' . __( 'Google PHP Client Library is not installed. Please install it to enable Google Drive integration.', 'contractor-management-portal' ) . '</p>';
+        return;
+    }
+
     $options = get_option( 'cmp_options' );
     if ( isset( $options['google_access_token']['access_token'] ) ) {
         echo '<p class="description" style="color: green;">' . __( 'Successfully authorized with Google.', 'contractor-management-portal' ) . '</p>';
     } else {
-        $client = cmp_get_google_client();
         $auth_url = $client->createAuthUrl();
         echo '<a href="' . esc_url( $auth_url ) . '" class="button button-primary">' . __( 'Authorize with Google', 'contractor-management-portal' ) . '</a>';
     }
@@ -217,4 +257,34 @@ function cmp_youtube_api_key_callback() {
     $options = get_option( 'cmp_options' );
     $api_key = isset( $options['youtube_api_key'] ) ? $options['youtube_api_key'] : '';
     echo '<input type="text" id="cmp_youtube_api_key" name="cmp_options[youtube_api_key]" value="' . esc_attr( $api_key ) . '" size="50" />';
+}
+
+/**
+ * QuickBooks section callback.
+ */
+function cmp_quickbooks_section_callback() {
+    echo '<p>Enter your QuickBooks API credentials below. You can get these from your <a href="https://developer.intuit.com/" target="_blank">Intuit Developer account</a>.</p>';
+
+    // We will add the authorization button here later, guarded by a class_exists check.
+    if ( ! class_exists('QuickBooksOnline\API\DataService\DataService') ) {
+        echo '<p class="description" style="color: red;">' . __( 'QuickBooks PHP SDK is not installed. Please install it to enable QuickBooks integration.', 'contractor-management-portal' ) . '</p>';
+    } else {
+        // Placeholder for the actual auth button and status
+        echo '<p class="description" style="color: orange;">' . __( 'QuickBooks integration is ready to be configured.', 'contractor-management-portal' ) . '</p>';
+    }
+}
+
+/**
+ * QuickBooks field callbacks.
+ */
+function cmp_quickbooks_client_id_callback() {
+    $options = get_option( 'cmp_options' );
+    $client_id = isset( $options['quickbooks_client_id'] ) ? $options['quickbooks_client_id'] : '';
+    echo '<input type="text" id="cmp_quickbooks_client_id" name="cmp_options[quickbooks_client_id]" value="' . esc_attr( $client_id ) . '" size="50" />';
+}
+
+function cmp_quickbooks_client_secret_callback() {
+    $options = get_option( 'cmp_options' );
+    $client_secret = isset( $options['quickbooks_client_secret'] ) ? $options['quickbooks_client_secret'] : '';
+    echo '<input type="text" id="cmp_quickbooks_client_secret" name="cmp_options[quickbooks_client_secret]" value="' . esc_attr( $client_secret ) . '" size="50" />';
 }

@@ -48,7 +48,25 @@ get_header(); ?>
             if ( $tasks_query->have_posts() ) :
                 echo '<ul>';
                 while ( $tasks_query->have_posts() ) : $tasks_query->the_post();
-                    echo '<li><a href="' . get_permalink() . '">' . get_the_title() . '</a></li>';
+                    $task_id = get_the_ID();
+
+                    // Get details
+                    $task_statuses = get_the_terms( $task_id, 'task-status' );
+                    $contractor_id = get_post_meta( $task_id, '_cmp_assigned_contractor', true );
+                    $contractor = get_userdata( $contractor_id );
+
+                    // Build details string
+                    $details = array();
+                    if ( ! empty( $task_statuses ) && ! is_wp_error( $task_statuses ) ) {
+                        $details[] = 'Status: ' . esc_html( wp_list_pluck( $task_statuses, 'name' )[0] );
+                    }
+                    if ( $contractor ) {
+                        $details[] = 'Contractor: ' . esc_html( $contractor->display_name );
+                    }
+
+                    $details_string = ! empty($details) ? ' <span class="task-details">(' . implode( ' | ', $details ) . ')</span>' : '';
+
+                    echo '<li><a href="' . get_permalink() . '">' . get_the_title() . '</a>' . $details_string . '</li>';
                 endwhile;
                 echo '</ul>';
                 wp_reset_postdata();
@@ -77,9 +95,22 @@ get_header(); ?>
                 if ( $invoices_query->have_posts() ) :
                     echo '<ul>';
                     while ( $invoices_query->have_posts() ) : $invoices_query->the_post();
-                        $status_terms = wp_get_post_terms( get_the_ID(), 'invoice-status' );
-                        $status = ! empty( $status_terms ) ? $status_terms[0]->name : '';
-                        echo '<li>' . get_the_title() . ' - <strong>' . esc_html( $status ) . '</strong></li>';
+                        $invoice_id = get_the_ID();
+                        $status_terms = wp_get_post_terms( $invoice_id, 'invoice-status' );
+                        $amount = get_post_meta( $invoice_id, '_cmp_invoice_amount', true );
+
+                        // Build details string
+                        $details = array();
+                        if ( ! empty( $status_terms ) && ! is_wp_error( $status_terms ) ) {
+                            $details[] = 'Status: ' . esc_html( $status_terms[0]->name );
+                        }
+                        if ( ! empty( $amount ) ) {
+                            $details[] = 'Amount: $' . esc_html( number_format( $amount, 2 ) );
+                        }
+
+                        $details_string = ! empty($details) ? ' <span class="invoice-details">(' . implode( ' | ', $details ) . ')</span>' : '';
+
+                        echo '<li>' . get_the_title() . $details_string . '</li>';
                     endwhile;
                     echo '</ul>';
                     wp_reset_postdata();

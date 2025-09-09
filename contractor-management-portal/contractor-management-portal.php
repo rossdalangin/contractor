@@ -32,6 +32,11 @@ if ( is_admin() ) {
     require plugin_dir_path( __FILE__ ) . 'admin/meta-boxes.php';
     require plugin_dir_path( __FILE__ ) . 'admin/settings.php';
     require plugin_dir_path( __FILE__ ) . 'includes/api.php';
+
+    // Only load QuickBooks API file if the SDK is present.
+    if ( class_exists('QuickBooksOnline\API\DataService\DataService') ) {
+        require plugin_dir_path( __FILE__ ) . 'includes/quickbooks-api.php';
+    }
 }
 
 /**
@@ -42,6 +47,7 @@ function cmp_plugin_activate() {
     cmp_create_dashboard_page();
     cmp_create_client_dashboard_page();
     cmp_insert_invoice_statuses();
+    cmp_insert_task_statuses();
 }
 register_activation_hook( __FILE__, 'cmp_plugin_activate' );
 
@@ -161,7 +167,7 @@ function cmp_handle_invoice_submission() {
             // Handle the file upload.
             if ( ! empty( $_FILES['cmp_invoice_file']['name'] ) ) {
                 $options = get_option( 'cmp_options' );
-                if ( isset( $options['google_access_token']['access_token'] ) ) {
+                if ( class_exists('Google_Client') && isset( $options['google_access_token']['access_token'] ) ) {
                     // Google Drive upload
                     $client = cmp_get_google_client();
                     $client->setAccessToken( $options['google_access_token'] );
@@ -209,6 +215,15 @@ function cmp_handle_invoice_submission() {
 
             // Set the invoice status to 'Pending'.
             wp_set_object_terms( $invoice_id, 'Pending', 'invoice-status' );
+
+            // Notify admin of new invoice
+            $admin_email = get_option( 'admin_email' );
+            $subject = 'New Invoice Submitted';
+            $invoice_title = get_the_title( $invoice_id );
+            $invoice_url = get_edit_post_link( $invoice_id );
+            $message = "A new invoice has been submitted: '" . $invoice_title . "'.\n\nYou can review the invoice here: " . $invoice_url;
+            $headers = array('Content-Type: text/plain; charset=UTF-8');
+            wp_mail( $admin_email, $subject, $message, $headers );
 
             // Redirect to the same page to prevent form resubmission.
             wp_redirect( get_permalink( $task_id ) );

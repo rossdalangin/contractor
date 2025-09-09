@@ -42,6 +42,14 @@ function cmp_add_submenus() {
     );
     add_submenu_page(
         'contractor-management-portal',
+        __( 'Documents', 'contractor-management-portal' ),
+        __( 'Documents', 'contractor-management-portal' ),
+        'manage_options',
+        'cmp-documents',
+        'cmp_render_documents_page'
+    );
+    add_submenu_page(
+        'contractor-management-portal',
         __( 'Settings', 'contractor-management-portal' ),
         __( 'Settings', 'contractor-management-portal' ),
         'manage_options',
@@ -59,12 +67,70 @@ function cmp_render_reporting_page() {
     <div class="wrap">
         <h1><?php _e( 'Reporting & Analytics', 'contractor-management-portal' ); ?></h1>
 
+        <form method="get">
+            <input type="hidden" name="page" value="cmp-reporting">
+            <?php
+            // Get current filter values
+            $current_status = isset( $_GET['invoice_status_filter'] ) ? sanitize_text_field( $_GET['invoice_status_filter'] ) : '';
+            $start_date = isset( $_GET['start_date_filter'] ) ? sanitize_text_field( $_GET['start_date_filter'] ) : '';
+            $end_date = isset( $_GET['end_date_filter'] ) ? sanitize_text_field( $_GET['end_date_filter'] ) : '';
+
+            // Status filter dropdown
+            $statuses = get_terms( array( 'taxonomy' => 'invoice-status', 'hide_empty' => false ) );
+            echo '<select name="invoice_status_filter">';
+            echo '<option value="">' . __( 'All Statuses', 'contractor-management-portal' ) . '</option>';
+            foreach ( $statuses as $status ) {
+                printf(
+                    '<option value="%s"%s>%s</option>',
+                    esc_attr( $status->slug ),
+                    selected( $current_status, $status->slug, false ),
+                    esc_html( $status->name )
+                );
+            }
+            echo '</select>';
+
+            // Date range filters
+            echo '<input type="date" name="start_date_filter" value="' . esc_attr( $start_date ) . '">';
+            echo '<input type="date" name="end_date_filter" value="' . esc_attr( $end_date ) . '">';
+
+            // Submit button
+            submit_button( __( 'Filter Report', 'primary' ), 'primary', 'filter_action', false );
+            ?>
+        </form>
+        <hr/>
+
         <h2><?php _e( 'Financial Overview', 'contractor-management-portal' ); ?></h2>
         <?php
         $args = array(
             'post_type' => 'invoice',
             'posts_per_page' => -1,
+            'post_status' => 'publish',
         );
+
+        // Add tax_query if status is set
+        if ( ! empty( $current_status ) ) {
+            $args['tax_query'] = array(
+                array(
+                    'taxonomy' => 'invoice-status',
+                    'field'    => 'slug',
+                    'terms'    => $current_status,
+                ),
+            );
+        }
+
+        // Add date_query if start or end date is set
+        if ( ! empty( $start_date ) || ! empty( $end_date ) ) {
+            $args['date_query'] = array(
+                'inclusive' => true,
+            );
+            if ( ! empty( $start_date ) ) {
+                $args['date_query']['after'] = $start_date;
+            }
+            if ( ! empty( $end_date ) ) {
+                $args['date_query']['before'] = $end_date;
+            }
+        }
+
         $invoices = new WP_Query( $args );
 
         $financial_data = array(
@@ -193,6 +259,86 @@ function cmp_render_reporting_page() {
 }
 
 /**
+ * Render the documents page.
+ */
+function cmp_render_documents_page() {
+    ?>
+    <div class="wrap">
+        <h1><?php _e( 'Document Management', 'contractor-management-portal' ); ?></h1>
+        <p><?php _e( 'Here is a list of all documents uploaded to invoices.', 'contractor-management-portal' ); ?></p>
+
+        <table class="widefat fixed" cellspacing="0">
+            <thead>
+                <tr>
+                    <th><?php _e( 'Invoice', 'contractor-management-portal' ); ?></th>
+                    <th><?php _e( 'File Name / Link', 'contractor-management-portal' ); ?></th>
+                    <th><?php _e( 'Source', 'contractor-management-portal' ); ?></th>
+                    <th><?php _e( 'Date Uploaded', 'contractor-management-portal' ); ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php
+                // Query for Google Drive files
+                $gdrive_invoices = new WP_Query( array(
+                    'post_type' => 'invoice',
+                    'posts_per_page' => -1,
+                    'meta_key' => '_cmp_invoice_gdrive_file_id',
+                ) );
+
+                if ( $gdrive_invoices->have_posts() ) {
+                    while ( $gdrive_invoices->have_posts() ) {
+                        $gdrive_invoices->the_post();
+                        $invoice_id = get_the_ID();
+                        $gdrive_file_id = get_post_meta( $invoice_id, '_cmp_invoice_gdrive_file_id', true );
+                        ?>
+                        <tr>
+                            <td><a href="<?php echo get_edit_post_link( $invoice_id ); ?>"><?php echo get_the_title(); ?></a></td>
+                            <td><a href="https://drive.google.com/file/d/<?php echo esc_attr( $gdrive_file_id ); ?>/view" target="_blank"><?php _e( 'View on Google Drive', 'contractor-management-portal' ); ?></a></td>
+                            <td><?php _e( 'Google Drive', 'contractor-management-portal' ); ?></td>
+                            <td><?php echo get_the_date(); ?></td>
+                        </tr>
+                        <?php
+                    }
+                    wp_reset_postdata();
+                }
+
+                // Query for WordPress Media Library files
+                $wp_invoices = new WP_Query( array(
+                    'post_type' => 'invoice',
+                    'posts_per_page' => -1,
+                    'meta_key' => '_cmp_invoice_file_id',
+                ) );
+
+                if ( $wp_invoices->have_posts() ) {
+                    while ( $wp_invoices->have_posts() ) {
+                        $wp_invoices->the_post();
+                        $invoice_id = get_the_ID();
+                        $wp_file_id = get_post_meta( $invoice_id, '_cmp_invoice_file_id', true );
+                        $file_link = wp_get_attachment_url( $wp_file_id );
+                        $file_name = get_the_title( $wp_file_id );
+                        ?>
+                        <tr>
+                            <td><a href="<?php echo get_edit_post_link( $invoice_id ); ?>"><?php echo get_the_title(); ?></a></td>
+                            <td><a href="<?php echo esc_url( $file_link ); ?>" target="_blank"><?php echo esc_html( $file_name ); ?></a></td>
+                            <td><?php _e( 'WordPress Media', 'contractor-management-portal' ); ?></td>
+                            <td><?php echo get_the_date(); ?></td>
+                        </tr>
+                        <?php
+                    }
+                    wp_reset_postdata();
+                }
+
+                if ( ! $gdrive_invoices->have_posts() && ! $wp_invoices->have_posts() ) {
+                    echo '<tr><td colspan="4">' . __( 'No documents found.', 'contractor-management-portal' ) . '</td></tr>';
+                }
+                ?>
+            </tbody>
+        </table>
+    </div>
+    <?php
+}
+
+/**
  * Handle the Stripe payment request.
  */
 function cmp_handle_stripe_payment() {
@@ -282,8 +428,11 @@ function cmp_handle_stripe_payment_success() {
         if ( 'paid' === $session->payment_status ) {
             // Update invoice status to 'Paid'
             wp_set_post_terms( $invoice_id, 'Paid', 'invoice-status' );
-            // Store the Stripe transaction ID
-            update_post_meta( $invoice_id, '_cmp_stripe_transaction_id', $session->payment_intent );
+
+            // Store the payment details in the standard meta fields
+            update_post_meta( $invoice_id, '_cmp_transaction_id', $session->payment_intent );
+            update_post_meta( $invoice_id, '_cmp_payment_method', 'Stripe' );
+            update_post_meta( $invoice_id, '_cmp_payment_date', date('Y-m-d') );
 
             // Add an admin notice
             add_action( 'admin_notices', 'cmp_payment_success_admin_notice' );
@@ -315,6 +464,39 @@ function cmp_admin_dashboard_page() {
     <div class="wrap">
         <h1><?php _e( 'Contractor Management Dashboard', 'contractor-management-portal' ); ?></h1>
         <p><?php _e( 'Welcome to the Contractor Management Portal. Here you can manage all your contractors, clients, channels, and tasks.', 'contractor-management-portal' ); ?></p>
+
+        <hr>
+        <h2><?php _e( 'System Status', 'contractor-management-portal' ); ?></h2>
+        <table class="widefat" style="width: 400px;">
+            <thead>
+                <tr>
+                    <th scope="col" style="width: 200px;"><?php _e( 'Component', 'contractor-management-portal' ); ?></th>
+                    <th scope="col"><?php _e( 'Status', 'contractor-management-portal' ); ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong><?php _e( 'Wordfence Security', 'contractor-management-portal' ); ?></strong></td>
+                    <td>
+                        <?php if ( is_plugin_active('wordfence/wordfence.php') ) : ?>
+                            <span style="color: green;"><?php _e( 'Active', 'contractor-management-portal' ); ?></span>
+                        <?php else : ?>
+                            <span style="color: red;"><?php _e( 'Inactive', 'contractor-management-portal' ); ?></span>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <tr class="alternate">
+                    <td><strong><?php _e( 'iThemes Security', 'contractor-management-portal' ); ?></strong></td>
+                    <td>
+                        <?php if ( is_plugin_active('better-wp-security/better-wp-security.php') ) : ?>
+                            <span style="color: green;"><?php _e( 'Active', 'contractor-management-portal' ); ?></span>
+                        <?php else : ?>
+                            <span style="color: red;"><?php _e( 'Inactive', 'contractor-management-portal' ); ?></span>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
     </div>
     <?php
 }
